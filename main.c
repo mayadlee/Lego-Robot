@@ -1,13 +1,17 @@
 #include <kipr/botball.h>
 
-int BLACK = 4000; 
-int BURNING = 0; //is the first bulding burning-- closer to the firemen
+//constants
+int BLACK = 3960; 
 double DEGREES_CONVERSION = 6444.444;
+
+//ports
 int rightM = 0;
 int leftM = 3;
 int leftIR = 1;
 int rightIR = 0;
 
+//<<-------------------------------------------GYROSCOPE CODE: EDIT WITH CAUTION-------------------------------------->>
+//Gyroscope code "DemoGyroLib" created by Norman Advanced Robotics; used and updated by GMHS 
 double bias; //variable to hold the calibration value
 int right_motor, left_motor;//ports
 
@@ -114,33 +118,52 @@ void simple_drive_with_gyro(int speed, double time)
         theta += (gyro_z() - bias) * 10;
     }
 }
+//<<---------------------------------------------------END GYROSCOPE CODE---------------------------------------------->>
 
+//<<---------------------------------------------------OTHER USER METHODS---------------------------------------------->>
+
+//a simple version of turning for simple turns
+void turnL(double angle) {
+    
+    turn_with_gyro(-500, 500, angle);
+    
+}
+
+void turnR(double angle) {
+    
+    turn_with_gyro(500, -500, angle);
+    
+}
+
+
+//<<----------------------------------------------------END USER METHODS----------------------------------------------->>
 int main() {
+    
     //preparation
     declare_motors(leftM, rightM);
     calibrate_gyro();
     
     //getting out of the box
     while (analog(leftIR) < BLACK) { 
-    	simple_drive_with_gyro(1000, 0.001); //drive forward until the black line is detected
+    	drive_with_gyro(1000, 10); //drive forward until the black line is detected
     } 
     
-    simple_drive_with_gyro(1000, 0.5);
+    drive_with_gyro(1000, 500);
     printf("Yeee boi i cleared the black tape\n") ; 
     
     
     //getting to the line
     while (analog(leftIR) < BLACK) { 
-    	simple_drive_with_gyro(1000, .0010);
+    	drive_with_gyro(1000, 10);
     } 
     printf("Yeee boi i found the black line\n") ;
 
     calibrate_gyro();
-    turn_with_gyro(-500, 500, 90.0); //turning to face the buildings 
+    turnL(90.0); //turning to face the potentially burning buildings 
     
-    calibrate_gyro(); // following the black line 
-    while(analog(leftIR) < BLACK) {
-    	if(analog(rightIR) < BLACK) {
+    calibrate_gyro(); 
+    while(analog(leftIR) < BLACK) {		//until robot reaches the corner,
+    	if(analog(rightIR) < BLACK) {	// following the black line 
             printf("Seeing white");
             mav(rightM, 900);
             mav(leftM, 600);
@@ -158,35 +181,47 @@ int main() {
     
     printf(" yee boi looking for building...");
     
-   int yes = 1; 
-    int b = 0; 
+    int count = 0; 
+    int timesFound = 0; 
     camera_open_black();
     camera_update();
     
-    while( yes < 25 ) { 
+    //looking for fire marker 25 times to ensure consistent results 
+    while(count < 25) { 
         camera_update();
-    	if(get_object_count(0) ==0){ 
-        	printf( " yee boi there is no building here" ) ;
-            yes++;
+    	if(get_object_count(0) ==0){ 			//if nothing is seen
+        	printf("yee boi there is no building here \n") ;
+            count++;
     	} 
-      	else { 
-        	printf("  yee boi ive FINALLY e building" ); 
-        	b = 1 ; 
-        	yes++;
+      	else { 											//when the marker is seen
+            if(get_object_bbox(0, 0).width > 30) {		//ensuring that the proper object is seen 
+                printf("Building has been found \n"); 
+                timesFound++; 
+                count++;
+            }
+            else {
+            	printf("Marker has been ignored. \n");
+            }
+            printf("Size: %d\n", get_object_bbox(0, 0).width);
     	} 
     }
     
-    if (b==1 ) { 
-        printf( "YEE BOI there is a burning building" ) ; 
-        // drop off the fireman 
+    //recalibration
+    cg();
+    
+    //now that the camera has checked for the marker, check to make sure it saw the marker multiple times
+    if (timesFound > 5) { 
+        printf("Conclusion: There is a fire here \n") ; 
+        int firstBuilding = 1;
+        //go to the second building 
         
     }
     else { 
-        printf("Yee boi there isnt a buring building" ) ; 
-        turn_with_gyro(500, -500, 90.0);
+        printf("Conclusion: There is no fire here \n" ) ; //now must head towards the other building 
+        int firstBuilding = 0;
+        turnR(90.0);
+        drive_with_gyro(1000, 2000);
     } 
-    
-   
     
     return 0;
 }
